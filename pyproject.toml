@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pxtrader"
+version = "0.1.0"
+description = "A Python client and automation framework for ProjectX-powered prop-firm futures platforms (TopstepX and others)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Bryce Sneed", email = "sneedbryce@gmail.com" }]
+keywords = ["trading", "futures", "topstep", "topstepx", "projectx", "prop-firm", "algorithmic-trading", "trading-bot"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = ["requests>=2.28"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/bryce-sneed/projectx-trader"
+Issues = "https://github.com/bryce-sneed/projectx-trader/issues"
+
+[tool.setuptools.packages.find]
+include = ["pxtrader*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
