@@ -90,6 +90,41 @@ class MarketDataClient:
         """Resolve full contract details (incl. the symbolId orders need)."""
         return self._get("/Symbols", {"symbol": symbol})
 
+    def resolve_contract(self, symbol: str) -> str:
+        """Best-effort: map a symbol (e.g. 'MNQ') to the contract id orders are placed against.
+
+        Tries symbol details then contract search and digs out the first id-like field. Response
+        shapes vary by firm — if this can't find it, pass the contract id to orders directly.
+        """
+        for fetch in (lambda: self.symbol_details(symbol), lambda: self.search_contracts(symbol)):
+            try:
+                cid = _extract_contract_id(fetch())
+            except Exception:
+                cid = None
+            if cid:
+                return cid
+        raise ValueError(f"could not resolve a contract id for {symbol!r} - pass symbol_id explicitly")
+
+
+def _extract_contract_id(data: Any) -> Optional[str]:
+    """Find the first plausible contract-id field in a (possibly nested) gateway response."""
+    keys = ("symbolId", "contractId", "id", "symbol")
+    if isinstance(data, dict):
+        for k in keys:
+            v = data.get(k)
+            if isinstance(v, (str, int)) and str(v):
+                return str(v)
+        for v in data.values():
+            found = _extract_contract_id(v)
+            if found:
+                return found
+    elif isinstance(data, list):
+        for item in data:
+            found = _extract_contract_id(item)
+            if found:
+                return found
+    return None
+
 
 def _series_to_bars(p: Dict[str, Any]) -> List[Dict[str, Any]]:
     t = p.get("t") or []

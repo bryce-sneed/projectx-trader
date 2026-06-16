@@ -13,6 +13,7 @@ time (re-entry only after the prior trade closes), mirroring real serialized exe
 from __future__ import annotations
 
 import statistics as st
+import time as _time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -156,3 +157,17 @@ class Backtester:
                 reason="eod", tag=pos.tag,
             ))
         return result
+
+
+def backtest_symbol(client, strategy: Strategy, symbol: str, *, resolution: int = 1,
+                    days: int = 30, point_value: float = 1.0, commission: float = 0.0) -> BacktestResult:
+    """Convenience: fetch recent real bars for ``symbol`` via the client and backtest ``strategy``.
+
+        from pxtrader import ProjectXClient, backtest_symbol
+        r = backtest_symbol(ProjectXClient().connect(), MyStrategy(), "MNQ", days=30, point_value=2.0)
+    """
+    now = int(_time.time())
+    start = now - days * 86_400
+    bars = client.bars(symbol, resolution=resolution, countback=days * 24 * 60 // resolution,
+                       start=start, end=now)
+    return Backtester(point_value=point_value, commission=commission).run(strategy, bars)

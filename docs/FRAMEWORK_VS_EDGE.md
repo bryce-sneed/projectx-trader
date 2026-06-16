@@ -21,11 +21,13 @@ the checklist every port is reviewed against.
 | Orders: modify brackets (SL/TP) | `broker/qq_broker.py` | ⏳ next |
 | Accounts / positions / order history | `broker/user.py` | ✅ ported → `accounts.py` |
 | Unified client (core flow) | `broker/qq_broker.py` | ✅ ported → `client.py` (`ProjectXClient`) |
-| Contract/tick resolution, fills, filled-trade sync | `broker/qq_broker.py` | ⏳ next |
+| Contract resolution (symbol -> contract id) | `broker/qq_broker.py` | ✅ `market_data.resolve_contract` |
+| Tick resolution, fills, filled-trade sync | `broker/qq_broker.py` | ⏳ next |
 | `Strategy` interface + throwaway example | (new) | ✅ `strategy.py` + `examples/strategy_orb.py` (ORB demo, public-domain) |
 | Backtest harness | (new, generic) | ✅ `backtest.py` (adverse-first exits, full stats) |
 | Reliability: fast fill confirm + reconciliation | runner internals (re-implemented generic) | ✅ `live.py` `LiveBot` |
-| Reliability: restart-recovery, watchdog, kill switch | `tools/run_bot_with_restart.py`, etc. | ⏳ later |
+| Reliability: warmup + restart-recovery + hands-free runtime | runner internals (re-implemented) | ✅ `runtime.py` + `LiveBot.warmup/recover` |
+| Reliability: watchdog auto-restart, kill switch | `tools/run_bot_with_restart.py`, `emergency_stop.py` | ⏳ later |
 
 ## ⛔ Edge — never ported (out of scope, stays private)
 

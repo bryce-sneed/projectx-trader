@@ -30,7 +30,7 @@ from .strategy import Context, Signal, Strategy
 class _Active:
     side: Side
     entry_price: float
-    stop: float
+    stop: Optional[float]
     target: Optional[float]
     time_exit: Optional[dtime]
     size: int
@@ -146,3 +146,47 @@ class LiveBot:
                 self.client.cancel_order(self.active.stop_order_id, self.account_id)
             except Exception:  # pragma: no cover
                 pass
+
+    # ── startup ──────────────────────────────────────────────────────────────
+    def warmup(self, bars: List[Bar]) -> None:
+        """Replay historical CLOSED bars so the strategy builds its state (indicators, ranges)
+        WITHOUT placing any orders — signals during warmup are discarded."""
+        if not self._started:
+            self.strategy.on_start()
+            self._started = True
+        for bar in bars:
+            self.history.append(bar)
+            self.strategy.on_bar(Context(bars=self.history,
+                                         in_position=self.active is not None, position=None))
+        self.log(f"warmed up on {len(bars)} bars")
+
+    def recover(self, stop_points: Optional[float] = None) -> None:
+        """Adopt an existing broker position on startup so a restart never loses track of it.
+
+        The original stop/target intent can't survive a restart. Pass ``stop_points`` to place a
+        fresh protective stop at entry +/- that distance; otherwise a loud warning is logged and you
+        should confirm a broker stop is already in place.
+        """
+        if self.active is not None:
+            return
+        pos = self._broker_position()
+        if not pos:
+            return
+        size = int(pos.get("size") or pos.get("positionSize") or 0)
+        if size == 0:
+            return
+        side = Side.BUY if size > 0 else Side.SELL
+        entry = float(pos.get("avg_price") or pos.get("averagePrice") or 0.0)
+        stop, stop_id = None, None
+        if stop_points:
+            stop = entry - stop_points if side is Side.BUY else entry + stop_points
+            try:
+                r = self.client.place_stop_order(self.symbol_id, side.opposite, abs(size), stop,
+                                                 account_id=self.account_id, tag="recovery-stop")
+                stop_id = getattr(r, "order_id", None)
+            except Exception as e:  # pragma: no cover
+                self.log(f"recovery stop failed ({e})")
+        else:
+            self.log("WARNING: recovered a position with NO known stop -- verify a broker stop exists")
+        self.active = _Active(side, entry, stop, None, None, abs(size), stop_id, "recovered")
+        self.log(f"recovered {side.value} {abs(size)} @ {entry}")

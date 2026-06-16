@@ -2,7 +2,7 @@
 
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
-> ⚠️ **Alpha (v0.2).** REST client + a `Strategy` framework with an offline backtester and a reliability-first live engine are in; the deeper reliability stack (watchdog, restart-recovery) and richer order tooling follow on the roadmap. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.
+> ⚠️ **Alpha (v0.3).** REST client + a `Strategy` framework (offline backtester, reliability-first live engine, hands-free runtime with restart-recovery). A watchdog/kill-switch and richer order tooling follow on the roadmap. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.
 
 ---
 
@@ -29,14 +29,16 @@ Prop-firm futures trading has exploded, but the tooling is rough. Most people wh
 - 🔌 Swappable firm config — the same client works across ProjectX firms, not hardcoded to one.
 - 🔐 **SSL verification on by default** (secrets only in `.env`) — the hardening a public client should ship with.
 
-**Strategy framework** *(new in v0.2)*
+**Strategy framework**
 - 🤖 `Strategy` interface — receive bars + position state, return a `Signal` (side + stop + target + time-exit).
 - 🧪 `Backtester` — run any strategy over historical bars with **no broker**, conservative adverse-first exits, full stats (P&L, win%, profit factor, max drawdown). The *same* `Strategy` runs live unchanged.
-- 🛡️ `LiveBot` — drives a strategy on a real account with the discipline that kills naive bots: **fill confirmation** (polls the position, never assumes), **reconciliation** (self-heals against the broker's truth), a **broker-side protective stop**, and verify-before-close.
+- 🛡️ `LiveBot` — fill confirmation (polls the position, never assumes), reconciliation (self-heals against the broker's truth), broker-side protective stop, verify-before-close.
+- 🔁 **Hands-free runtime** — `BarFeed` + `run_live` drive the bot on closing bars, with **warmup** (build indicator state without trading) and **restart-recovery** (adopt an existing position so a restart never double-enters). One-command CLI: `python -m pxtrader.runtime …`.
+- 📊 **Backtest on real data** in one call: `backtest_symbol(client, strategy, "MNQ", days=30)`.
 
 **On the roadmap**
-- 🧰 Bracket modify (SL/TP), contract/tick resolution, fill & filled-trade sync.
-- 🦺 Deeper reliability: restart-recovery, watchdog auto-restart, kill switch.
+- 🧰 Bracket modify (SL/TP) + true OCO, fill & filled-trade sync.
+- 🦺 Watchdog auto-restart + kill switch.
 
 ## Install
 
