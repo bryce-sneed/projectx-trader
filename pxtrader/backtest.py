@@ -179,6 +179,18 @@ class Backtester:
         return result
 
 
+def backtest_csv(strategy: Strategy, path: str, *, point_value: float = 1.0,
+                 commission: float = 0.0) -> BacktestResult:
+    """Convenience: load bars from a CSV file and backtest ``strategy`` on them.
+
+        from pxtrader import backtest_csv
+        print(backtest_csv(MyStrategy(), "MNQ_1m.csv", point_value=2.0).summary())
+    """
+    from .data import load_csv_bars
+    return Backtester(point_value=point_value, commission=commission).run(
+        strategy, load_csv_bars(path))
+
+
 def backtest_symbol(client, strategy: Strategy, symbol: str, *, resolution: int = 1,
                     days: int = 30, point_value: float = 1.0, commission: float = 0.0) -> BacktestResult:
     """Convenience: fetch recent real bars for ``symbol`` via the client and backtest ``strategy``.

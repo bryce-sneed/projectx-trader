@@ -8,9 +8,10 @@ backtest harness + ``Strategy`` interface land in subsequent releases — see th
 """
 from .accounts import AccountClient
 from .auth import AuthClient, HeaderManager, LoginResponse, SystemProfile
-from .backtest import Backtester, BacktestResult, ClosedTrade, backtest_symbol
+from .backtest import Backtester, BacktestResult, ClosedTrade, backtest_csv, backtest_symbol
 from .client import ProjectXClient
 from .config import DEFAULT_FIRM, PRESETS, FirmConfig, get_firm
+from .data import load_csv_bars
 from .live import LiveBot
 from .market_data import MarketDataClient
 from .models import (
@@ -28,7 +29,7 @@ from .runtime import BarFeed, run_live
 from .strategy import Context, Signal, Strategy
 from .supervisor import KillSwitch, supervise
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     # client
@@ -45,6 +46,8 @@ __all__ = [
     "BacktestResult",
     "ClosedTrade",
     "backtest_symbol",
+    "backtest_csv",
+    "load_csv_bars",
     "LiveBot",
     "BarFeed",
     "run_live",

@@ -1,6 +1,6 @@
 # pxtrader
 
-![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-42%20passing-brightgreen)
 
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
@@ -36,7 +36,7 @@ Prop-firm futures trading has exploded, but the tooling is rough. Most people wh
 - 🧪 `Backtester` — run any strategy over historical bars with **no broker**, conservative adverse-first exits, full stats (P&L, win%, profit factor, max drawdown). The *same* `Strategy` runs live unchanged.
 - 🛡️ `LiveBot` — fill confirmation (polls the position, never assumes), reconciliation (self-heals against the broker's truth), broker-side protective stop, verify-before-close.
 - 🔁 **Hands-free runtime** — `BarFeed` + `run_live` drive the bot on closing bars, with **warmup** (build indicator state without trading) and **restart-recovery** (adopt an existing position so a restart never double-enters). One-command CLI: `python -m pxtrader.runtime …`.
-- 📊 **Backtest on real data** in one call: `backtest_symbol(client, strategy, "MNQ", days=30)`.
+- 📊 **Backtest on real data** in one call: `backtest_symbol(client, strategy, "MNQ", days=30)` — or **your own CSV**: `backtest_csv(strategy, "MNQ_1m.csv")` (forgiving column/timestamp parsing).
 
 **On the roadmap**
 - 🧰 Bracket modify (SL/TP) + true OCO, fill & filled-trade sync.
