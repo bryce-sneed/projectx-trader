@@ -2,7 +2,7 @@
 
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
-> ⚠️ **Alpha (v0.1).** The API client foundation is landing first; the live bot loop and backtest harness follow on the roadmap below. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.
+> ⚠️ **Alpha (v0.2).** REST client + a `Strategy` framework with an offline backtester and a reliability-first live engine are in; the deeper reliability stack (watchdog, restart-recovery) and richer order tooling follow on the roadmap. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.
 
 ---
 
@@ -21,19 +21,22 @@ Prop-firm futures trading has exploded, but the tooling is rough. Most people wh
 
 ## Features
 
-**v0.1 (now) — REST client**
+**REST client**
 - 🔑 Auth: username/password login → bearer token, attached to every request.
-- 📈 Market data: historical + live OHLC bars (returned as clean `Bar` objects), contract search.
-- 🧾 Orders: market / limit / stop placement and cancel, with the gateway's order-type codes handled for you.
+- 📈 Market data: historical + live OHLC bars (clean `Bar` objects), contract search.
+- 🧾 Orders: market / limit / stop placement and cancel, gateway order-type codes handled for you.
 - 👤 Accounts: list accounts, open positions, order history.
 - 🔌 Swappable firm config — the same client works across ProjectX firms, not hardcoded to one.
-- 🔐 **SSL verification on by default** (and secrets only in `.env`) — the kind of hardening a public client should ship with.
+- 🔐 **SSL verification on by default** (secrets only in `.env`) — the hardening a public client should ship with.
+
+**Strategy framework** *(new in v0.2)*
+- 🤖 `Strategy` interface — receive bars + position state, return a `Signal` (side + stop + target + time-exit).
+- 🧪 `Backtester` — run any strategy over historical bars with **no broker**, conservative adverse-first exits, full stats (P&L, win%, profit factor, max drawdown). The *same* `Strategy` runs live unchanged.
+- 🛡️ `LiveBot` — drives a strategy on a real account with the discipline that kills naive bots: **fill confirmation** (polls the position, never assumes), **reconciliation** (self-heals against the broker's truth), a **broker-side protective stop**, and verify-before-close.
 
 **On the roadmap**
-- 🧰 Bracket (stop+target) management, contract/tick resolution, fill & filled-trade sync.
-- 🛡️ Reliability layer: fast fill confirmation, order/position reconciliation, restart-recovery, watchdog auto-restart, kill switch.
-- 🧪 Backtest harness: run a strategy over 1-minute history with the *same* engine that trades it live (no drifted re-implementation).
-- 🤖 `Strategy` interface + a worked example strategy.
+- 🧰 Bracket modify (SL/TP), contract/tick resolution, fill & filled-trade sync.
+- 🦺 Deeper reliability: restart-recovery, watchdog auto-restart, kill switch.
 
 ## Install
 
@@ -70,9 +73,35 @@ details = px.market_data.symbol_details("MNQ")
 
 > Always test on a simulated/practice account before going anywhere near a live one.
 
-## Bring your own strategy
+## Write & backtest a strategy
 
-`pxtrader` deliberately contains **no trading strategies**. The forthcoming `Strategy` interface is a thin contract — you receive bars and account state, you return order intents; the framework executes and manages them reliably. Your edge stays yours.
+`pxtrader` ships **no trading edge** — you bring it. A strategy is a thin contract: receive bars + position state, return a `Signal`. The same strategy backtests offline and runs live unchanged.
+
+```python
+from pxtrader import Strategy, Signal, Side, Backtester
+
+class Breakout(Strategy):
+    def on_bar(self, ctx):
+        closes = ctx.closes(20)
+        if len(closes) < 20:
+            return None
+        if ctx.bar.close > max(closes[:-1]):           # 20-bar high breakout
+            return Signal(Side.BUY, stop=min(closes), target=ctx.bar.close + 50)
+        return None
+
+# Backtest offline — no broker, no API key:
+result = Backtester(point_value=2.0, commission=1.24).run(Breakout(), bars)
+print(result.summary())   # trades=…  net=$…  win%=…  PF=…  maxDD=$…
+
+# Run it live (test on a SIM account first):
+# from pxtrader import ProjectXClient, LiveBot
+# px = ProjectXClient().connect()
+# bot = LiveBot(px, Breakout(), symbol_id="<contract id>", size=1)
+# bot.step(latest_closed_bar)   # call when each bar closes
+```
+
+Try it now with zero setup: `python examples/02_backtest.py` (the ORB demo on synthetic data).
+Your edge stays yours — see [`docs/FRAMEWORK_VS_EDGE.md`](docs/FRAMEWORK_VS_EDGE.md).
 
 ## Supported firms
 

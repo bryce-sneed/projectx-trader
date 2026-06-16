@@ -8,8 +8,10 @@ backtest harness + ``Strategy`` interface land in subsequent releases — see th
 """
 from .accounts import AccountClient
 from .auth import AuthClient, HeaderManager, LoginResponse, SystemProfile
+from .backtest import Backtester, BacktestResult, ClosedTrade
 from .client import ProjectXClient
 from .config import DEFAULT_FIRM, PRESETS, FirmConfig, get_firm
+from .live import LiveBot
 from .market_data import MarketDataClient
 from .models import (
     Account,
@@ -22,8 +24,9 @@ from .models import (
     Side,
 )
 from .orders import OrderClient, OrderError, OrderRequest, OrderResult
+from .strategy import Context, Signal, Strategy
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # client
@@ -32,6 +35,14 @@ __all__ = [
     "MarketDataClient",
     "OrderClient",
     "AccountClient",
+    # framework
+    "Strategy",
+    "Signal",
+    "Context",
+    "Backtester",
+    "BacktestResult",
+    "ClosedTrade",
+    "LiveBot",
     # auth
     "HeaderManager",
     "LoginResponse",

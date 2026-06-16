@@ -22,10 +22,10 @@ the checklist every port is reviewed against.
 | Accounts / positions / order history | `broker/user.py` | ✅ ported → `accounts.py` |
 | Unified client (core flow) | `broker/qq_broker.py` | ✅ ported → `client.py` (`ProjectXClient`) |
 | Contract/tick resolution, fills, filled-trade sync | `broker/qq_broker.py` | ⏳ next |
-| Reliability: fast fill confirm, reconciliation, restart recovery | runner internals | ⏳ later |
-| Watchdog / healthcheck / kill switch | `tools/run_bot_with_restart.py`, `healthcheck.py`, `emergency_stop.py` | ⏳ later |
-| Backtest harness (engine-faithful) | harness internals | ⏳ later |
-| `Strategy` interface + ONE throwaway example | (new) | ⏳ later |
+| `Strategy` interface + throwaway example | (new) | ✅ `strategy.py` + `examples/strategy_orb.py` (ORB demo, public-domain) |
+| Backtest harness | (new, generic) | ✅ `backtest.py` (adverse-first exits, full stats) |
+| Reliability: fast fill confirm + reconciliation | runner internals (re-implemented generic) | ✅ `live.py` `LiveBot` |
+| Reliability: restart-recovery, watchdog, kill switch | `tools/run_bot_with_restart.py`, etc. | ⏳ later |
 
 ## ⛔ Edge — never ported (out of scope, stays private)
 
