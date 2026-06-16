@@ -43,10 +43,8 @@ def main():
 
     print("ORB on 10 synthetic sessions @ 1 MNQ ($2/pt):")
     print("  " + result.summary())
-    print("  first trades:")
-    for t in result.trades[:8]:
-        print(f"    {t.entry_time:%m-%d %H:%M}  {t.side.value:<4} {t.entry_price:8.1f} -> "
-              f"{t.exit_price:8.1f}  {t.reason:<6} ${t.pnl:,.2f}")
+    print("\n  equity curve:")
+    print(result.equity_curve())
 
 
 if __name__ == "__main__":

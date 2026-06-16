@@ -1,5 +1,7 @@
 # pxtrader
 
+![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
+
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
 > ⚠️ **Alpha (v0.3).** REST client + a `Strategy` framework (offline backtester, reliability-first live engine, hands-free runtime with restart-recovery). A watchdog/kill-switch and richer order tooling follow on the roadmap. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.

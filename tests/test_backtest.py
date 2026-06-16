@@ -86,3 +86,14 @@ def test_orb_long_breakout():
             _bar(105, high=106, low=104, mm=34)]
     r = Backtester(point_value=2.0).run(OpeningRangeBreakout(or_bars=3, target_r=1.0), bars)
     assert r.n == 1 and r.trades[0].side is Side.BUY
+
+
+def test_equity_curve_renders_ascii():
+    bars = [_bar(100, mm=30), _bar(105, high=111, low=99, mm=31)]
+    r = Backtester(point_value=2.0).run(_EnterOnce(Side.BUY, stop=95, target=110), bars)
+    curve = r.equity_curve(height=5)
+    assert curve.count("\n") == 5 and curve.isascii()        # height rows + axis, ASCII only
+
+
+def test_equity_curve_empty():
+    assert Backtester().run(_EnterOnce(Side.BUY, stop=95), []).equity_curve() == "(no trades)"

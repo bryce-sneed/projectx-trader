@@ -79,6 +79,26 @@ class BacktestResult:
             f"avg=${st.mean(pnls):,.2f}  PF={self.profit_factor:.2f}  maxDD=${self.max_drawdown:,.2f}"
         )
 
+    def equity_curve(self, height: int = 8, width: int = 60) -> str:
+        """A small ASCII cumulative-equity chart for quick terminal feedback (ASCII-only)."""
+        if not self.trades:
+            return "(no trades)"
+        cum, s = [], 0.0
+        for t in self.trades:
+            s += t.pnl
+            cum.append(s)
+        n = len(cum)
+        pts = ([cum[round(i * (n - 1) / (width - 1))] for i in range(width)]
+               if n > 1 else cum * width)
+        hi, lo = max(pts + [0.0]), min(pts + [0.0])
+        rng = (hi - lo) or 1.0
+        rows = []
+        for r in range(height):
+            level = hi - (r + 0.5) * rng / height
+            rows.append(f"{level:8.0f} |" + "".join("*" if p >= level else " " for p in pts))
+        rows.append(f"{'':8} +" + "-" * len(pts))
+        return "\n".join(rows)
+
 
 @dataclass
 class _Open:

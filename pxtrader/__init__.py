@@ -26,8 +26,9 @@ from .models import (
 from .orders import OrderClient, OrderError, OrderRequest, OrderResult
 from .runtime import BarFeed, run_live
 from .strategy import Context, Signal, Strategy
+from .supervisor import KillSwitch, supervise
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     # client
@@ -47,6 +48,8 @@ __all__ = [
     "LiveBot",
     "BarFeed",
     "run_live",
+    "supervise",
+    "KillSwitch",
     # auth
     "HeaderManager",
     "LoginResponse",
