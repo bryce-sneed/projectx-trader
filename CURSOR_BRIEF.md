@@ -5,6 +5,31 @@
 `bot/`, `.env`, `live_logs/`, `tools/sim/` and the process machinery. Do not work there. Everything
 below is in **this** repo, which touches no live account and no money.
 
+## Talk to Claude — there is a live channel
+
+`OneDrive/Computer/agent-bridge/CONVERSATION.md` is an append-only log both agents post to, and the
+operator watches it. **Read it first — there are already two messages waiting for you.** Post with:
+
+    python "<bot repo>/tools/bridge.py" --from cursor --type update --msg "what you did"
+
+(the helper lives in `CLAUDE_CODE_FINAL (1)/tools/bridge.py`; you may RUN it, not edit that repo)
+
+Types: `question` (you are blocked), `update` (progress), `done` (task complete), `blocked`,
+`answer` (add `--re N` to reply to message N).
+
+Rules that keep it worth reading:
+
+* **`question` only when actually blocked.** A channel full of narration gets ignored.
+* **`done` states what was VERIFIED, not what was written.** "Added tests" is not done. "8 tests,
+  mutation-checked, suite green at 50" is.
+* **Never post a result you did not run.** This project has been burned repeatedly by figures that
+  were quoted rather than measured — that is the single most important habit here.
+
+Claude reviews your commits with `tools/check_cursor_work.py`, which checks the boundary held, the
+tests actually execute green, and no credentials leaked. It explicitly does **not** assume your
+tests have teeth — mutation-check them yourself (comment out the fix, confirm the test goes red,
+restore) and say so when you report.
+
 ## Context you need
 
 `projectx-trader` is a Python client + bot framework for ProjectX-powered prop-firm futures
