@@ -1,6 +1,18 @@
 # pxtrader
 
-![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-42%20passing-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
+
+## Project status — read this first
+
+**Private-use automation framework.** This repo is maintained for the operator's own trading system. It is **not** intended for PyPI release as a ProjectX client library.
+
+**What it deliberately is not:** a competing gateway client. [`project-x-py`](https://pypi.org/project/project-x-py/) is the better maintained TopStepX client (SignalR realtime, richer orders, portfolio utils). Full comparison → [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md).
+
+**Why you cannot "just depend on them and layer `FirmConfig` on top":** the two clients target **incompatible API surfaces** — `pxtrader` uses password `/Login` on separate `userapi` + `chartapi` hosts; `project-x-py` uses API-key `/Auth/loginKey` on `api.topstepx.com`. That is not a hostname tweak; swapping clients means rewriting the integration boundary.
+
+**What is worth keeping here:** `LiveBot` fill-confirm, broker reconciliation, and restart-recovery — for private use, not as a publishable package today.
+
+---
 
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
