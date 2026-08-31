@@ -22,4 +22,4 @@ python -m pxtrader.runtime \
   --symbol MNQ --symbol-id F.US.MNQ --size 1
 ```
 
-Wrap it in `pxtrader.supervise(...)` with a `KillSwitch` for auto-restart + a `touch HALT` stop.
+`supervise()` + `KillSwitch` are snippet-tier in-process restart helpers — see README capability table. Production process supervision lives in `pxtrader.watchdog` (not wired to runtime yet).

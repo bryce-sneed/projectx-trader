@@ -1,6 +1,6 @@
 # pxtrader
 
-![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-green) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![status](https://img.shields.io/badge/status-alpha-orange) ![tests](https://img.shields.io/badge/tests-65%20passing-brightgreen)
 
 ## Project status — read this first
 
@@ -12,11 +12,21 @@
 
 **What is worth keeping here:** `LiveBot` fill-confirm, broker reconciliation, and restart-recovery — for private use, not as a publishable package today.
 
+### What is real, what is snippet-tier, what is not wired
+
+| Piece | Status | Notes |
+|---|---|---|
+| `LiveBot` | **Real, wired** | Fill-confirm, reconciliation, verify-before-close — used by `run_live` |
+| `riskstate` | **Real, library-only** | Fail-closed account/ledger limits — not yet called from runtime |
+| `reference` | **Real, library-only** | Per-field session provenance gate (VA/PDH vs VWAP) — not yet called from runtime |
+| `watchdog` | **Real patterns, not wired** | Subprocess supervision lessons (pause-before-spawn, fail-closed PIDs, supervisor-first stop) — tests only, no runtime integration |
+| `supervise` + `KillSwitch` | **Snippet-tier** | In-process crash restart (~77 LOC). Useful cookbook code, **not** ops safety — do not rely on it for production process supervision |
+
 ---
 
 **A Python client and automation framework for ProjectX-powered prop-firm futures platforms** — TopstepX today, any ProjectX gateway tomorrow.
 
-> ⚠️ **Alpha (v0.3).** REST client + a `Strategy` framework (offline backtester, reliability-first live engine, hands-free runtime with restart-recovery). A watchdog/kill-switch and richer order tooling follow on the roadmap. Built and maintained by [NQBryce](https://github.com/bryce-sneed) — an engineer who runs a live automated futures system on this exact API every trading day.
+> ⚠️ **Alpha (v0.3).** REST client + `Strategy` backtester + `LiveBot`/`run_live` for live execution. Process supervision (`watchdog`) and risk/reference gates exist as tested libraries but are **not wired into the runtime**; `supervise()` is snippet-tier in-process restart only — not production ops safety.
 
 ---
 
@@ -47,12 +57,12 @@ Prop-firm futures trading has exploded, but the tooling is rough. Most people wh
 - 🤖 `Strategy` interface — receive bars + position state, return a `Signal` (side + stop + target + time-exit).
 - 🧪 `Backtester` — run any strategy over historical bars with **no broker**, conservative adverse-first exits, full stats (P&L, win%, profit factor, max drawdown). The *same* `Strategy` runs live unchanged.
 - 🛡️ `LiveBot` — fill confirmation (polls the position, never assumes), reconciliation (self-heals against the broker's truth), broker-side protective stop, verify-before-close.
-- 🔁 **Hands-free runtime** — `BarFeed` + `run_live` drive the bot on closing bars, with **warmup** (build indicator state without trading) and **restart-recovery** (adopt an existing position so a restart never double-enters). One-command CLI: `python -m pxtrader.runtime …`.
+- 🔁 **Hands-free runtime** — `BarFeed` + `run_live` drive the bot on closing bars, with warmup and restart-recovery. One-command CLI: `python -m pxtrader.runtime …`.
 - 📊 **Backtest on real data** in one call: `backtest_symbol(client, strategy, "MNQ", days=30)` — or **your own CSV**: `backtest_csv(strategy, "MNQ_1m.csv")` (forgiving column/timestamp parsing).
 
 **On the roadmap**
 - 🧰 Bracket modify (SL/TP) + true OCO, fill & filled-trade sync.
-- 🦺 Watchdog auto-restart + kill switch.
+- 🔌 Wire `watchdog`, `riskstate`, and `reference` gates into `run_live`.
 
 ## Install
 
