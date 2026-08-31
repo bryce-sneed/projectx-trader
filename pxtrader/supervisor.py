@@ -21,13 +21,22 @@ from typing import Callable, List, Optional
 
 
 class KillSwitch:
-    """File-based stop flag. Create the file to halt; delete it to allow running again."""
+    """File-based stop flag. Create the file to halt; delete it to allow running again.
+
+    Scoped to **live** execution by default. A halt file must never silence backtest replay —
+    the production bug checked it unconditionally and reported "no trades" as if that were a result.
+    """
 
     def __init__(self, path: str):
         self.path = Path(path)
 
-    def engaged(self) -> bool:
-        return self.path.exists()
+    def engaged(self, *, execution: str = "live") -> bool:
+        """True when the halt file exists and applies to ``execution`` (``"live"`` or ``"backtest"``)."""
+        if not self.path.exists():
+            return False
+        if execution == "backtest":
+            return False
+        return True
 
     def engage(self) -> None:
         self.path.write_text("halt\n", encoding="utf-8")
@@ -48,7 +57,7 @@ def supervise(run_fn: Callable[..., None], *, max_restarts: int = 10, window_sec
     log = logger or (lambda m: print(f"[supervisor] {m}"))
 
     def should_stop() -> bool:
-        return bool(kill_switch and kill_switch.engaged())
+        return bool(kill_switch and kill_switch.engaged(execution="live"))
 
     restarts: List[float] = []
     while True:

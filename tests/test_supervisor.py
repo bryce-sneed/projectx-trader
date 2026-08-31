@@ -63,7 +63,9 @@ def test_killswitch_stops_after_crash(tmp_path):
 def test_killswitch_file_lifecycle(tmp_path):
     ks = KillSwitch(str(tmp_path / "HALT"))
     assert not ks.engaged()
+    assert not ks.engaged(execution="backtest")
     ks.engage()
     assert ks.engaged()
+    assert not ks.engaged(execution="backtest")
     ks.clear()
     assert not ks.engaged()
