@@ -149,6 +149,25 @@ def test_stop_child_first_false_pass_while_respawned_child_runs():
     assert alive.get(301) is True, "respawned child still running after child-first stop"
 
 
+def test_spawn_succeeds_when_unpaused_in_window():
+    """Accept-path: unpaused watchdog in window must spawn — not only refuse when paused."""
+    state = {"spawned": 0}
+
+    def spawn():
+        state["spawned"] += 1
+        return 4242
+
+    pid = spawn_if_not_paused(
+        paused=lambda: False,
+        spawn=spawn,
+        sleep=lambda _: None,
+        within_window=lambda: True,
+        poll_seconds=0,
+    )
+    assert pid == 4242
+    assert state["spawned"] == 1
+
+
 def test_stop_supervisor_first_then_child_then_verify():
     """Supervisor-first stop prevents respawn and verifies both original PIDs are gone."""
     alive = {100: True, 200: True}

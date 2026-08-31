@@ -147,3 +147,45 @@ def test_valid_ledger_reports_real_headroom(tmp_path: Path):
 
     assert isinstance(result, LimitOk)
     assert result.value == pytest.approx(1850.0)
+
+
+def test_healthy_headroom_sizes_contracts_within_rule_max():
+    """Accept-path: real headroom must size contracts — not only refuse bad input."""
+    headroom = LimitOk(1386.56)
+    sized = size_contracts(headroom, rule_max=2, dollars_per_contract=500.0)
+    assert isinstance(sized, LimitOk)
+    assert sized.value == 2.0
+
+
+def test_healthy_ledger_headroom_sizes_contracts_mid_session(tmp_path: Path):
+    """End-to-end accept: fresh ledger → headroom → contract count for a live caller."""
+    ledger = tmp_path / "day_ledger.csv"
+    ledger.write_text("peak_equity,running_equity\n52000,50800\n", encoding="utf-8")
+    fresh = 2_000_000.0
+    os.utime(ledger, (fresh, fresh))
+
+    headroom = headroom_from_ledger_file(
+        ledger, trail_allowance=2000.0, now=lambda: fresh, max_age_seconds=86_400,
+    )
+    sized = size_contracts(headroom, rule_max=2, dollars_per_contract=500.0)
+    assert isinstance(headroom, LimitOk)
+    assert isinstance(sized, LimitOk)
+    assert sized.value == 1.0
+
+
+def test_broker_headroom_accepts_real_dollars():
+    result = broker_headroom_from_reading(1386.56)
+    assert isinstance(result, LimitOk)
+    assert result.value == pytest.approx(1386.56)
+
+
+def test_explicitly_enabled_feature_may_run():
+    state = read_feature_config({"daily_loss_cap": "enabled"}, "daily_loss_cap")
+    assert state is FeatureConfig.ENABLED
+    assert feature_may_run(state) is True
+
+
+def test_poller_may_clear_own_lock_when_flat():
+    registry = RiskLockRegistry()
+    assert registry.acquire("position_poller", "flat account") is True
+    assert poller_may_clear_on_flat(registry, poller="position_poller", account_flat=True) is True
