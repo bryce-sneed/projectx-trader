@@ -6,6 +6,7 @@ Run it on a laptop, then walk around: the signal bar grows as you get closer.
     pip install bleak
     python find_fitbit.py              # scan: list nearby devices, likely Fitbits first
     python find_fitbit.py --lock "Fitbit Air"  # live hot/cold meter
+    python find_fitbit.py --survey "Fitbit Air"  # measure spot by spot, rank them
 
 Before you start, turn Bluetooth OFF on the phone the Fitbit is paired with.
 A tracker that is connected to its phone usually stops advertising, so nothing
@@ -143,15 +144,72 @@ async def lock(target: str) -> None:
             sys.stdout.flush()
 
 
+async def survey(target: str, seconds: float) -> None:
+    """Measure one spot at a time, then rank the spots. Steadier than the live meter."""
+    by_address = is_address(target)
+    target_l = target.lower()
+    readings: list[int] = []
+
+    def on_adv(device, adv):
+        name = (adv.local_name or device.name or "").lower()
+        if (device.address.lower() == target_l) if by_address else (target_l in name):
+            readings.append(adv.rssi)
+
+    results: list[tuple[str, int, float | None]] = []
+    print(f"Survey mode for '{target}'. At each spot, type a label (e.g. 'bedroom by bed')")
+    print(f"and press Enter, then hold the laptop still for {seconds:.0f}s. Blank label = done.\n")
+    async with BleakScanner(detection_callback=on_adv):
+        while True:
+            label = (await asyncio.to_thread(input, "spot> ")).strip()
+            if not label:
+                break
+            readings.clear()
+            for left in range(int(seconds), 0, -1):
+                sys.stdout.write(f"\r  measuring... {left:2d}s  ({len(readings)} pings)   ")
+                sys.stdout.flush()
+                await asyncio.sleep(1)
+            got = sorted(readings)
+            med = float(got[len(got) // 2]) if got else None
+            results.append((label, len(got), med))
+            print(f"\r  {label}: " + (f"{med:.0f} dBm from {len(got)} pings" if got else "NOT HEARD") + " " * 20)
+            _print_ranking(results)
+
+    _print_ranking(results, final=True)
+
+
+def _print_ranking(results, final: bool = False) -> None:
+    heard = sorted((r for r in results if r[2] is not None), key=lambda r: -r[2])
+    if not final and len(results) < 2:
+        return
+    print("\n  Ranking so far (strongest first):" if not final else "\nFinal ranking (strongest first):")
+    for label, n, med in heard:
+        print(f"    {med:6.0f} dBm  {label}  ({n} pings)")
+    for label, _, _ in (r for r in results if r[2] is None):
+        print(f"      ----    {label}  (not heard)")
+    if final and heard:
+        print(f"\nSearch around '{heard[0][0]}' first, then survey smaller spots inside it.")
+    if final and not heard and results:
+        print("\nNot heard anywhere: the battery may be dead, or it reconnected to your phone.")
+    print()
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--lock", metavar="NAME_OR_ADDRESS",
                    help='track one device, e.g. --lock "Fitbit Air" (name survives address changes)')
+    p.add_argument("--survey", metavar="NAME_OR_ADDRESS",
+                   help='measure spot by spot and rank them, e.g. --survey "Fitbit Air"')
     p.add_argument("--seconds", type=float, default=15, help="scan duration (default 15)")
     p.add_argument("--all", action="store_true", help="list every device, not just likely Fitbits")
     args = p.parse_args()
     try:
-        asyncio.run(lock(args.lock) if args.lock else scan(args.seconds, args.all))
+        if args.survey:
+            coro = survey(args.survey, args.seconds if args.seconds != 15 else 8)
+        elif args.lock:
+            coro = lock(args.lock)
+        else:
+            coro = scan(args.seconds, args.all)
+        asyncio.run(coro)
     except KeyboardInterrupt:
         print()
 
