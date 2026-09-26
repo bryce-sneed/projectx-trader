@@ -165,8 +165,10 @@ async def survey(target: str, seconds: float) -> None:
     """Measure one spot at a time, then rank the spots. Steadier than the live meter."""
     matches = Matcher(target)
     readings: list[int] = []
+    heard_any = [0]  # adverts from every device; 0 means the scanner itself isn't working
 
     def on_adv(device, adv):
+        heard_any[0] += 1
         if matches(device, adv):
             readings.append(adv.rssi)
 
@@ -179,14 +181,15 @@ async def survey(target: str, seconds: float) -> None:
             if not label:
                 break
             readings.clear()
+            heard_any[0] = 0
             for left in range(int(seconds), 0, -1):
-                sys.stdout.write(f"\r  measuring... {left:2d}s  ({len(readings)} pings)   ")
+                sys.stdout.write(f"\r  measuring... {left:2d}s  ({len(readings)} Fitbit pings, {heard_any[0]} from all devices)   ")
                 sys.stdout.flush()
                 await asyncio.sleep(1)
             got = sorted(readings)
             med = float(got[len(got) // 2]) if got else None
             results.append((label, len(got), med))
-            print(f"\r  {label}: " + (f"{med:.0f} dBm from {len(got)} pings" if got else "NOT HEARD") + " " * 20)
+            print(f"\r  {label}: " + (f"{med:.0f} dBm from {len(got)} pings" if got else f"NOT HEARD ({heard_any[0]} adverts from other devices)") + " " * 20)
             _print_ranking(results)
 
     _print_ranking(results, final=True)
@@ -208,18 +211,50 @@ def _print_ranking(results, final: bool = False) -> None:
     print()
 
 
+async def diagnose(seconds: float) -> None:
+    """Print every advert that could be the Fitbit, with timestamps."""
+    start = time.monotonic()
+    total = 0
+    per_addr: dict[str, int] = {}
+
+    def on_adv(device, adv):
+        nonlocal total
+        total += 1
+        name = adv.local_name or device.name
+        score = fitbit_score(name, adv.service_uuids, adv.manufacturer_data.keys())
+        if score == 0 and "fitbit" not in (name or "").lower():
+            return
+        per_addr[device.address] = per_addr.get(device.address, 0) + 1
+        mids = ",".join(f"0x{m:04X}" for m in adv.manufacturer_data)
+        print(f"{time.monotonic() - start:6.1f}s  {adv.rssi:4}  {device.address}  "
+              f"local_name={adv.local_name!r} device.name={device.name!r}  "
+              f"mfr=[{mids}]  uuids={list(adv.service_uuids)}")
+
+    print(f"Diagnosing for {seconds:.0f}s. Keep the laptop still.\n")
+    async with BleakScanner(detection_callback=on_adv):
+        await asyncio.sleep(seconds)
+    print(f"\nAdverts from all devices: {total}")
+    for addr, n in per_addr.items():
+        print(f"Possible Fitbit {addr}: {n} adverts (one every {seconds / n:.1f}s)")
+    if not per_addr:
+        print("No Fitbit-like adverts heard.")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--lock", metavar="NAME_OR_ADDRESS",
                    help='track one device, e.g. --lock "Fitbit Air" (name survives address changes)')
     p.add_argument("--survey", metavar="NAME_OR_ADDRESS",
                    help='measure spot by spot and rank them, e.g. --survey "Fitbit Air"')
+    p.add_argument("--diagnose", action="store_true", help="print every Fitbit-like advert (for debugging)")
     p.add_argument("--seconds", type=float, default=15, help="scan duration (default 15)")
     p.add_argument("--all", action="store_true", help="list every device, not just likely Fitbits")
     args = p.parse_args()
     try:
-        if args.survey:
-            coro = survey(args.survey, args.seconds if args.seconds != 15 else 8)
+        if args.diagnose:
+            coro = diagnose(args.seconds if args.seconds != 15 else 60)
+        elif args.survey:
+            coro = survey(args.survey, args.seconds if args.seconds != 15 else 20)
         elif args.lock:
             coro = lock(args.lock)
         else:
