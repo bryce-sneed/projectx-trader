@@ -98,11 +98,30 @@ def is_address(s: str) -> bool:
     return bool(re.fullmatch(r"([0-9a-f]{2}:){5}[0-9a-f]{2}|[0-9a-f-]{36}", s.lower()))
 
 
+class Matcher:
+    """Matches a device by address, or by name. Not every advertisement carries
+    the name, so once a name matches we also remember that device's address."""
+
+    def __init__(self, target: str):
+        self.target = target.lower()
+        self.addresses = {self.target} if is_address(target) else set()
+        self.by_name = not is_address(target)
+
+    def __call__(self, device, adv) -> bool:
+        addr = device.address.lower()
+        if addr in self.addresses:
+            return True
+        name = (adv.local_name or device.name or "").lower()
+        if self.by_name and self.target in name:
+            self.addresses.add(addr)
+            return True
+        return False
+
+
 async def lock(target: str) -> None:
     # Fitbits rotate their Bluetooth address every few minutes for privacy, so
     # matching by name (e.g. "Fitbit Air") keeps tracking after a rotation.
-    by_address = is_address(target)
-    target_l = target.lower()
+    matches = Matcher(target)
     smooth = Smoother()
     last_seen = 0.0
     samples = 0
@@ -111,14 +130,12 @@ async def lock(target: str) -> None:
 
     def on_adv(device, adv):
         nonlocal last_seen, samples
-        name = (adv.local_name or device.name or "").lower()
-        hit = device.address.lower() == target_l if by_address else target_l in name
-        if hit:
+        if matches(device, adv):
             smooth.add(adv.rssi)
             last_seen = time.monotonic()
             samples += 1
 
-    kind = "address" if by_address else "name containing"
+    kind = "name containing" if matches.by_name else "address"
     print(f"Tracking {kind} '{target}'. Walk slowly, pause 3-5 s at each spot; Ctrl+C to stop.")
     print("Watch the dBm number: closer to 0 is closer (-60 beats -90).\n")
     async with BleakScanner(detection_callback=on_adv):
@@ -146,13 +163,11 @@ async def lock(target: str) -> None:
 
 async def survey(target: str, seconds: float) -> None:
     """Measure one spot at a time, then rank the spots. Steadier than the live meter."""
-    by_address = is_address(target)
-    target_l = target.lower()
+    matches = Matcher(target)
     readings: list[int] = []
 
     def on_adv(device, adv):
-        name = (adv.local_name or device.name or "").lower()
-        if (device.address.lower() == target_l) if by_address else (target_l in name):
+        if matches(device, adv):
             readings.append(adv.rssi)
 
     results: list[tuple[str, int, float | None]] = []
