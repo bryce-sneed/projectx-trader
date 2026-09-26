@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitbit Finder</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#15181d; --muted:#5d6570; --card:#fff; --line:#dde1e6;
+          --cold:#3b82f6; --warm:#f59e0b; --hot:#ef4444; --accent:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+          --bg:#0f1115; --fg:#e8eaed; --muted:#9aa3ad; --card:#181b21; --line:#2a2f37; } }
+  :root[data-theme="dark"] { --bg:#0f1115; --fg:#e8eaed; --muted:#9aa3ad; --card:#181b21; --line:#2a2f37; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.45 system-ui, sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.4rem; margin:.2rem 0 .8rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  button { font:inherit; padding:.7rem 1rem; border-radius:10px; border:0; background:var(--accent); color:#fff; width:100%; }
+  button.secondary { background:transparent; color:var(--fg); border:1px solid var(--line); }
+  .muted { color:var(--muted); font-size:.9rem; }
+  ol { padding-left:1.2rem; margin:.3rem 0; }
+  #meter { text-align:center; }
+  #big { font-size:2.2rem; font-weight:700; margin:.4rem 0; }
+  #bar { height:22px; border-radius:11px; background:var(--line); overflow:hidden; }
+  #fill { height:100%; width:0; background:var(--cold); transition:width .3s, background .3s; }
+  ul#list { list-style:none; padding:0; margin:0; }
+  #list li { display:flex; justify-content:space-between; gap:8px; padding:10px 4px; border-top:1px solid var(--line); cursor:pointer; overflow-wrap:anywhere; }
+  #list li.likely { font-weight:600; }
+  .err { color:var(--hot); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Fitbit Finder</h1>
+
+  <div class="card">
+    <strong>Before you start</strong>
+    <ol class="muted">
+      <li>Turn Bluetooth <b>off</b> on the phone paired with the Fitbit (a connected tracker stops advertising).</li>
+      <li>Use Chrome on Android or a laptop. In <code>chrome://flags</code> enable <b>Experimental Web Platform features</b>, then restart Chrome.</li>
+      <li>Open this page over <code>https://</code> or <code>localhost</code>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <button id="start">Scan for devices</button>
+    <p id="status" class="muted"></p>
+  </div>
+
+  <div class="card" id="meter" hidden>
+    <div class="muted" id="target"></div>
+    <div id="big">--</div>
+    <div id="bar"><div id="fill"></div></div>
+    <p class="muted" id="rssi"></p>
+    <button class="secondary" id="sound">Sound: off</button>
+  </div>
+
+  <div class="card">
+    <strong>Nearby devices</strong> <span class="muted">(tap one to track it; likely Fitbits in bold)</span>
+    <ul id="list"></ul>
+  </div>
+</main>
+<script>
+const FITBIT_SERVICE = 'adabfb00-6e7d-4601-bda2-bffaa68956ba';
+const HINTS = ['fitbit', 'air', 'charge', 'inspire', 'luxe', 'versa', 'sense', 'ace'];
+const $ = id => document.getElementById(id);
+const devices = new Map();   // id -> {name, rssi, score, seen}
+let target = null, smooth = null, lastSeen = 0, soundOn = false, audio = null, nextBeep = 0;
+
+function score(name, uuids, mfr) {
+  let s = 0;
+  if (uuids.some(u => u.toLowerCase() === FITBIT_SERVICE)) s += 3;
+  if (mfr && mfr.has(0x0204)) s += 2; else if (mfr && mfr.has(0x00E0)) s += 1;
+  if (name && HINTS.some(h => name.toLowerCase().includes(h))) s += 2;
+  return s;
+}
+
+function onAdvert(e) {
+  const id = e.device.id, name = e.name || e.device.name || '(no name)';
+  const d = devices.get(id) || { name, score: 0 };
+  d.name = name; d.rssi = e.rssi; d.seen = Date.now();
+  d.score = Math.max(d.score, score(name, e.uuids || [], e.manufacturerData));
+  devices.set(id, d);
+  if (id === target && e.rssi != null) {
+    smooth = smooth == null ? e.rssi : 0.25 * e.rssi + 0.75 * smooth;
+    lastSeen = Date.now();
+  }
+}
+
+function renderList() {
+  const rows = [...devices.entries()]
+    .filter(([, d]) => Date.now() - d.seen < 30000)
+    .sort((a, b) => b[1].score - a[1].score || (b[1].rssi ?? -999) - (a[1].rssi ?? -999));
+  $('list').replaceChildren(...rows.map(([id, d]) => {
+    const li = document.createElement('li');
+    if (d.score > 0) li.className = 'likely';
+    li.innerHTML = `<span></span><span>${d.rssi ?? '?'} dBm</span>`;
+    li.firstChild.textContent = (d.score > 0 ? '★ ' : '') + d.name;
+    li.onclick = () => { target = id; smooth = null; $('meter').hidden = false; $('target').textContent = 'Tracking: ' + d.name; };
+    return li;
+  }));
+}
+
+function proximity(r) {
+  if (r >= -50) return ['RIGHT HERE', 'within ~1 m — look under things', 'var(--hot)'];
+  if (r >= -62) return ['HOT', 'very close', 'var(--hot)'];
+  if (r >= -72) return ['WARM', 'same room', 'var(--warm)'];
+  if (r >= -84) return ['COOL', 'nearby', 'var(--cold)'];
+  return ['COLD', 'far away', 'var(--cold)'];
+}
+
+function beep() {
+  if (!audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = 880; g.gain.value = 0.15;
+  o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.06);
+}
+
+function renderMeter() {
+  if (target == null) return;
+  if (smooth == null) { $('big').textContent = 'Waiting…'; return; }
+  const stale = (Date.now() - lastSeen) / 1000;
+  if (stale > 10) {
+    $('big').textContent = 'Lost signal';
+    $('rssi').textContent = `No signal for ${stale | 0}s — go back to where it was stronger.`;
+    return;
+  }
+  const [label, hint, color] = proximity(smooth);
+  $('big').textContent = label;
+  $('fill').style.width = Math.max(0, Math.min(100, (smooth + 100) * 100 / 60)) + '%';
+  $('fill').style.background = color;
+  $('rssi').textContent = `${smooth.toFixed(1)} dBm · ${hint}`;
+  // Geiger-style: beep faster as the signal gets stronger.
+  if (soundOn && Date.now() >= nextBeep) {
+    beep(); if (navigator.vibrate) navigator.vibrate(40);
+    nextBeep = Date.now() + Math.max(120, Math.min(1500, (-smooth - 40) * 40));
+  }
+}
+
+async function start() {
+  const status = $('status');
+  if (!navigator.bluetooth) { status.innerHTML = '<span class="err">This browser has no Web Bluetooth. Use Chrome on Android or desktop, or the Python script.</span>'; return; }
+  try {
+    if (navigator.bluetooth.requestLEScan) {
+      await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true, keepRepeatedDevices: true });
+      navigator.bluetooth.addEventListener('advertisementreceived', onAdvert);
+      status.textContent = 'Scanning continuously…';
+    } else {
+      // Fallback: pick one device in Chrome's chooser, then watch its adverts.
+      const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [FITBIT_SERVICE] });
+      if (!dev.watchAdvertisements) throw new Error('Enable "Experimental Web Platform features" in chrome://flags.');
+      dev.addEventListener('advertisementreceived', onAdvert);
+      await dev.watchAdvertisements();
+      target = dev.id; $('meter').hidden = false; $('target').textContent = 'Tracking: ' + (dev.name || dev.id);
+      status.textContent = 'Watching the selected device…';
+    }
+    $('start').disabled = true;
+  } catch (err) {
+    status.innerHTML = `<span class="err">${err.message}</span>`;
+  }
+}
+
+$('start').onclick = start;
+$('sound').onclick = () => {
+  soundOn = !soundOn;
+  if (soundOn && !audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  $('sound').textContent = 'Sound: ' + (soundOn ? 'on' : 'off');
+};
+setInterval(renderList, 1000);
+setInterval(renderMeter, 100);
+</script>
+</body>
+</html>
