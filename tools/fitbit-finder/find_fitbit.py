@@ -24,6 +24,8 @@ from bleak import BleakScanner
 
 # Fitbit's custom GATT service, advertised by most Fitbit trackers.
 FITBIT_SERVICE = "adabfb00-6e7d-4601-bda2-bffaa68956ba"
+# Google-assigned 16-bit service UUID 0xFD62, advertised by the Fitbit Air.
+GOOGLE_FD62 = "0000fd62-0000-1000-8000-00805f9b34fb"
 # Bluetooth SIG company IDs: Fitbit, Google.
 FITBIT_COMPANY_IDS = {0x0204: "Fitbit", 0x00E0: "Google"}
 NAME_HINTS = ("fitbit", "air", "charge", "inspire", "luxe", "versa", "sense", "ace")
@@ -32,8 +34,11 @@ NAME_HINTS = ("fitbit", "air", "charge", "inspire", "luxe", "versa", "sense", "a
 def fitbit_score(name: str | None, service_uuids, manufacturer_ids) -> int:
     """How likely an advertisement is a Fitbit: 0 = no evidence, higher = stronger."""
     score = 0
-    if FITBIT_SERVICE in {u.lower() for u in service_uuids}:
+    uuids = {u.lower() for u in service_uuids}
+    if FITBIT_SERVICE in uuids:
         score += 3
+    elif GOOGLE_FD62 in uuids:
+        score += 1
     if 0x0204 in manufacturer_ids:
         score += 2
     elif 0x00E0 in manufacturer_ids:
@@ -122,7 +127,7 @@ async def lock(target: str) -> None:
     # Fitbits rotate their Bluetooth address every few minutes for privacy, so
     # matching by name (e.g. "Fitbit Air") keeps tracking after a rotation.
     matches = Matcher(target)
-    smooth = Smoother()
+    smooth = Smoother(alpha=0.5)  # few pings per burst, so react faster
     last_seen = 0.0
     samples = 0
     history: list[tuple[float, float]] = []  # (time, smoothed rssi)
@@ -136,7 +141,8 @@ async def lock(target: str) -> None:
             samples += 1
 
     kind = "name containing" if matches.by_name else "address"
-    print(f"Tracking {kind} '{target}'. Walk slowly, pause 3-5 s at each spot; Ctrl+C to stop.")
+    print(f"Tracking {kind} '{target}'. Ctrl+C to stop.")
+    print("The Air only broadcasts every ~15 s, so stand still ~30 s at each spot.")
     print("Watch the dBm number: closer to 0 is closer (-60 beats -90).\n")
     async with BleakScanner(detection_callback=on_adv):
         while True:
@@ -144,19 +150,19 @@ async def lock(target: str) -> None:
             now = time.monotonic()
             if smooth.value is None:
                 line = f"waiting for first signal... ({now - last_seen if last_seen else 0:.0f}s)"
-            elif now - last_seen > 10:
+            elif now - last_seen > 45:
                 line = f"lost signal for {now - last_seen:.0f}s - go back to where it was stronger (best {best:.0f} dBm)"
             else:
                 v = smooth.value
                 best = max(best, v)
                 history.append((now, v))
-                history[:] = [h for h in history if now - h[0] <= 6]
+                history[:] = [h for h in history if now - h[0] <= 30]
                 delta = v - history[0][1]
                 trend = "^ WARMER" if delta >= 2 else "v colder" if delta <= -2 else "- steady"
                 label, bar = proximity(v)
                 bell = "\a" if v >= -55 else ""
                 line = (f"{v:6.1f} dBm [{'#' * bar:<40}] {trend:<8}  best {best:.0f}  "
-                        f"{label}  ({samples} pings){bell}")
+                        f"{label}  ({samples} pings, last {now - last_seen:.0f}s ago){bell}")
             sys.stdout.write("\r" + line.ljust(118))
             sys.stdout.flush()
 
@@ -254,7 +260,7 @@ def main() -> None:
         if args.diagnose:
             coro = diagnose(args.seconds if args.seconds != 15 else 60)
         elif args.survey:
-            coro = survey(args.survey, args.seconds if args.seconds != 15 else 20)
+            coro = survey(args.survey, args.seconds if args.seconds != 15 else 35)
         elif args.lock:
             coro = lock(args.lock)
         else:
