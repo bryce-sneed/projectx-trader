@@ -5,7 +5,7 @@ Run it on a laptop, then walk around: the signal bar grows as you get closer.
 
     pip install bleak
     python find_fitbit.py              # scan: list nearby devices, likely Fitbits first
-    python find_fitbit.py --lock ADDR  # track one device with a live hot/cold meter
+    python find_fitbit.py --lock "Fitbit Air"  # live hot/cold meter
 
 Before you start, turn Bluetooth OFF on the phone the Fitbit is paired with.
 A tracker that is connected to its phone usually stops advertising, so nothing
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import re
 import sys
 import time
 
@@ -87,40 +88,65 @@ async def scan(seconds: float, show_all: bool) -> None:
     for addr, (score, rssi, name, mids) in rows:
         makers = ",".join(FITBIT_COMPANY_IDS.get(m, f"0x{m:04X}") for m in mids)
         print(f"{'*' * score:>6}  {rssi:>5}  {addr:<40} {name} {makers}")
-    print("\nPick the best candidate and run:  python find_fitbit.py --lock <address>")
+    print('\nPick the best candidate and run:  python find_fitbit.py --lock "<name>"  (or the address)')
     print("Unsure which it is? Stand next to each candidate spot; the right one gets stronger.")
 
 
-async def lock(address: str) -> None:
-    target = address.lower()
+def is_address(s: str) -> bool:
+    """MAC address (Windows/Linux) or UUID (macOS)."""
+    return bool(re.fullmatch(r"([0-9a-f]{2}:){5}[0-9a-f]{2}|[0-9a-f-]{36}", s.lower()))
+
+
+async def lock(target: str) -> None:
+    # Fitbits rotate their Bluetooth address every few minutes for privacy, so
+    # matching by name (e.g. "Fitbit Air") keeps tracking after a rotation.
+    by_address = is_address(target)
+    target_l = target.lower()
     smooth = Smoother()
     last_seen = 0.0
+    samples = 0
+    history: list[tuple[float, float]] = []  # (time, smoothed rssi)
+    best = -999.0
 
     def on_adv(device, adv):
-        nonlocal last_seen
-        if device.address.lower() == target:
+        nonlocal last_seen, samples
+        name = (adv.local_name or device.name or "").lower()
+        hit = device.address.lower() == target_l if by_address else target_l in name
+        if hit:
             smooth.add(adv.rssi)
             last_seen = time.monotonic()
+            samples += 1
 
-    print(f"Tracking {address}. Walk slowly and turn in place; Ctrl+C to stop.\n")
+    kind = "address" if by_address else "name containing"
+    print(f"Tracking {kind} '{target}'. Walk slowly, pause 3-5 s at each spot; Ctrl+C to stop.")
+    print("Watch the dBm number: closer to 0 is closer (-60 beats -90).\n")
     async with BleakScanner(detection_callback=on_adv):
         while True:
             await asyncio.sleep(0.5)
+            now = time.monotonic()
             if smooth.value is None:
-                line = "waiting for first signal..."
-            elif time.monotonic() - last_seen > 10:
-                line = f"lost signal for {time.monotonic() - last_seen:.0f}s - go back to where it was stronger"
+                line = f"waiting for first signal... ({now - last_seen if last_seen else 0:.0f}s)"
+            elif now - last_seen > 10:
+                line = f"lost signal for {now - last_seen:.0f}s - go back to where it was stronger (best {best:.0f} dBm)"
             else:
-                label, bar = proximity(smooth.value)
-                bell = "\a" if smooth.value >= -55 else ""
-                line = f"{smooth.value:6.1f} dBm  [{'#' * bar:<40}]  {label}{bell}"
-            sys.stdout.write("\r\033[K" + line)
+                v = smooth.value
+                best = max(best, v)
+                history.append((now, v))
+                history[:] = [h for h in history if now - h[0] <= 6]
+                delta = v - history[0][1]
+                trend = "^ WARMER" if delta >= 2 else "v colder" if delta <= -2 else "- steady"
+                label, bar = proximity(v)
+                bell = "\a" if v >= -55 else ""
+                line = (f"{v:6.1f} dBm [{'#' * bar:<40}] {trend:<8}  best {best:.0f}  "
+                        f"{label}  ({samples} pings){bell}")
+            sys.stdout.write("\r" + line.ljust(118))
             sys.stdout.flush()
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--lock", metavar="ADDRESS", help="track one device's signal strength")
+    p.add_argument("--lock", metavar="NAME_OR_ADDRESS",
+                   help='track one device, e.g. --lock "Fitbit Air" (name survives address changes)')
     p.add_argument("--seconds", type=float, default=15, help="scan duration (default 15)")
     p.add_argument("--all", action="store_true", help="list every device, not just likely Fitbits")
     args = p.parse_args()
